@@ -1,0 +1,199 @@
+version: '3.8'
+
+services:
+
+  # ===============================
+  # MongoDB
+  # ===============================
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - microservices-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===============================
+  # RabbitMQ (Async Messaging)
+  # ===============================
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # Management UI
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===============================
+  # Eureka Server
+  # ===============================
+  eureka-server:
+    build:
+      context: ./eureka-server
+      dockerfile: Dockerfile
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # ===============================
+  # Config Server
+  # ===============================
+  config-server:
+    build:
+      context: ./configserver
+      dockerfile: Dockerfile
+    container_name: config-server
+    ports:
+      - "8888:8888"
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - microservices-network
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # ===============================
+  # Email Service (RabbitMQ Consumer)
+  # ===============================
+  email-service:
+    build:
+      context: ./emailservice
+      dockerfile: Dockerfile
+    container_name: email-service
+    ports:
+      - "8080:8080"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    networks:
+      - microservices-network
+    environment:
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+
+  # ===============================
+  # Flight Service
+  # ===============================
+  flight-service:
+    build:
+      context: ./flightservice
+      dockerfile: Dockerfile
+    container_name: flight-service
+    ports:
+      - "8081:8081"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    networks:
+      - microservices-network
+    environment:
+      SPRING_DATA_MONGODB_URI: mongodb://root:root@mongodb:27017/flightdb?authSource=admin
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+
+  # ===============================
+  # Booking Service (RabbitMQ Producer)
+  # ===============================
+  booking-service:
+    build:
+      context: ./bookingservice
+      dockerfile: Dockerfile
+    container_name: booking-service
+    ports:
+      - "8082:8082"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    networks:
+      - microservices-network
+    environment:
+      SPRING_DATA_MONGODB_URI: mongodb://root:root@mongodb:27017/bookingdb?authSource=admin
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+
+  # ===============================
+  # API Gateway
+  # ===============================
+  api-gateway:
+    build:
+      context: ./Apigateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    ports:
+      - "8085:8085"
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      flight-service:
+        condition: service_started
+      booking-service:
+        condition: service_started
+      email-service:
+        condition: service_started
+    networks:
+      - microservices-network
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      SPRING_DATA_MONGODB_URI: mongodb://root:root@mongodb:27017/apigatewaydb?authSource=admin
+
+# ===============================
+# Networks & Volumes
+# ===============================
+networks:
+  microservices-network:
+    driver: bridge
+
+volumes:
+  mongodb-data:
