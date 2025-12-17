@@ -22,8 +22,17 @@ public class JwtAuthFilter implements GlobalFilter {
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
 
         String path = exchange.getRequest().getPath().toString();
+        String method = exchange.getRequest().getMethod().name();
+
+
+        if ("OPTIONS".equalsIgnoreCase(method)) {
+            return chain.filter(exchange);
+        }
 
         if (path.contains("/api/auth")) {
+            return chain.filter(exchange);
+        }
+        if (path.startsWith("/flights")) {
             return chain.filter(exchange);
         }
 
