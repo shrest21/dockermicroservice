@@ -19,7 +19,6 @@ public class BookingEmailListener {
         this.objectMapper = objectMapper;
     }
 
-    // ✅ CONFIRMATION EMAIL
     @RabbitListener(queues = "booking.confirm.queue")
     public void sendBookingConfirmation(String message) throws JsonProcessingException {
 
@@ -32,10 +31,9 @@ public class BookingEmailListener {
                 booking.getFlightId()
         );
 
-        System.out.println("✅ CONFIRMATION EMAIL SENT");
+        System.out.println("CONFIRMATION EMAIL SENT");
     }
 
-    // ✅ CANCELLATION EMAIL
     @RabbitListener(queues = RabbitMQConfig.BOOKING_CANCEL_QUEUE)
     public void sendBookingCancellation(String message) throws JsonProcessingException {
 
@@ -48,6 +46,6 @@ public class BookingEmailListener {
                 booking.getFlightId()
         );
 
-        System.out.println("✅ CANCELLATION EMAIL SENT");
+        System.out.println("CANCELLATION EMAIL SENT");
     }
 }

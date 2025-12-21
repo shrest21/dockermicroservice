@@ -76,6 +76,7 @@ services:
       - microservices-network
     environment:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      SPRING_PROFILES_ACTIVE: docker
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8888/actuator/health"]
       interval: 30s
@@ -107,6 +108,7 @@ services:
       SPRING_RABBITMQ_PORT: 5672
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
       SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      SPRING_PROFILES_ACTIVE: docker
 
   # ===============================
   # Flight Service
@@ -131,6 +133,7 @@ services:
       SPRING_DATA_MONGODB_URI: mongodb://root:root@mongodb:27017/flightdb?authSource=admin
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
       SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      SPRING_PROFILES_ACTIVE: docker
 
   # ===============================
   # Booking Service (RabbitMQ Producer)
@@ -159,6 +162,7 @@ services:
       SPRING_RABBITMQ_PORT: 5672
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
       SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      SPRING_PROFILES_ACTIVE: docker
 
   # ===============================
   # API Gateway
@@ -187,6 +191,7 @@ services:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
       SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
       SPRING_DATA_MONGODB_URI: mongodb://root:root@mongodb:27017/apigatewaydb?authSource=admin
+      SPRING_PROFILES_ACTIVE: docker
 
 # ===============================
 # Networks & Volumes

@@ -10,7 +10,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
+import com.flightapp.apigateway.DTO.PasswordChange;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 @RestController
@@ -22,6 +24,18 @@ public class AuthController {
     private final UserRepository userRepository;
     private final JwtUtils jwtUtils;
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+
+    @PostMapping("/change")
+    public Mono<ResponseEntity<Object>> changePassword(@RequestBody PasswordChange request) {
+        return userRepository.findByUsername(request.getUsername())
+                .flatMap(user -> {
+                    user.setPassword(encoder.encode(request.getNewPassword()));
+                    user.setLastPasswordUpdatedAt(LocalDateTime.now());
+                    return userRepository.save(user)
+                            .map(saved -> ResponseEntity.ok((Object) Map.of("message", "Password updated successfully")));
+                })
+                .switchIfEmpty(Mono.just(ResponseEntity.status(404).body((Object) Map.of("message", "User not found"))));
+    }
 
     @PostMapping("/signup")
     public Mono<ResponseEntity<?>> register(@RequestBody User user) {
@@ -43,6 +57,7 @@ public class AuthController {
 
                                 user.setPassword(encoder.encode(user.getPassword()));
                                 user.setRoles(Set.of("ROLE_USER"));
+                                user.setLastPasswordUpdatedAt(LocalDateTime.now());
 
                                 return userRepository.save(user)
                                         .map(saved -> {
@@ -66,12 +81,12 @@ public class AuthController {
 
                     String token = jwtUtils.generateJwt(dbUser.getUsername());
 
-                    // Create HttpOnly Cookie
+                    // this is the HttpOnly Cookie creation i am doing
                     ResponseCookie cookie = ResponseCookie.from("bezkoder", token)
                             .httpOnly(true)
                             .secure(false)  // Set to true in production with HTTPS
                             .path("/")
-                            .maxAge(24 * 60 * 60)  // 24 hours
+                            .maxAge(24 * 60 * 60)
                             .sameSite("Lax")
                             .build();
 
@@ -80,6 +95,7 @@ public class AuthController {
                     response.put("username", dbUser.getUsername());
                     response.put("email", dbUser.getEmail());
                     response.put("roles", new ArrayList<>(dbUser.getRoles()));
+                    response.put("lastPasswordUpdatedAt", dbUser.getLastPasswordUpdatedAt());
 
                     return Mono.just(
                             (ResponseEntity<?>) ResponseEntity.ok()
