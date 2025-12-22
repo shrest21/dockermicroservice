@@ -26,16 +26,23 @@ public class AuthController {
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
     @PostMapping("/change")
-    public Mono<ResponseEntity<Object>> changePassword(@RequestBody PasswordChange request) {
+    public Mono<ResponseEntity<Map<String, String>>> changePassword(
+            @RequestBody PasswordChange request) {
+
         return userRepository.findByUsername(request.getUsername())
-                .flatMap(user -> {
+                .map(user -> {
+                    if (encoder.matches(request.getNewPassword(), user.getPassword())) {
+                        return ResponseEntity.badRequest().body(Map.of("message", "New password cannot be same as old password"));
+                    }
                     user.setPassword(encoder.encode(request.getNewPassword()));
                     user.setLastPasswordUpdatedAt(LocalDateTime.now());
-                    return userRepository.save(user)
-                            .map(saved -> ResponseEntity.ok((Object) Map.of("message", "Password updated successfully")));
+                    userRepository.save(user).subscribe();
+                    return ResponseEntity.ok(Map.of("message", "Password updated successfully"));
                 })
-                .switchIfEmpty(Mono.just(ResponseEntity.status(404).body((Object) Map.of("message", "User not found"))));
+                .defaultIfEmpty(ResponseEntity.status(404).body(Map.of("message", "User not found")));
     }
+
+
 
     @PostMapping("/signup")
     public Mono<ResponseEntity<?>> register(@RequestBody User user) {
